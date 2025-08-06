@@ -48,13 +48,6 @@ class WhatsAppService {
     console.log("📡 Configurando eventos do WhatsApp...");
     
     this.client.on("qr", (qr) => {
-      const qrTime = Date.now();
-      const totalTime = qrTime - this.startTime;
-      console.log(`📱 QR Code gerado em ${totalTime}ms (${(totalTime/1000).toFixed(2)}s):`);
-      qrcode.generate(qr, { small: true });
-    });
-
-    this.client.on("qr", (qr) => {
       console.log("🔍 Evento QR detectado!");
       const qrTime = Date.now();
       const totalTime = qrTime - this.startTime;
