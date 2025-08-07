@@ -1,9 +1,7 @@
 require("dotenv").config();
 const { Client, LocalAuth } = require("whatsapp-web.js");
 const qrcode = require("qrcode-terminal");
-const puppeteer = require("puppeteer");
 const Message = require("../models/Message");
-const puppeteerConfig = require("../config/puppeteer");
 
 class WhatsAppService {
   constructor() {
@@ -21,7 +19,37 @@ class WhatsAppService {
     console.log("📱 Criando WhatsApp client...");
     this.client = new Client({
       authStrategy: new LocalAuth(),
-      puppeteer: puppeteerConfig
+      puppeteer: {
+        headless: true,
+        args: [
+          "--no-sandbox",
+          "--disable-setuid-sandbox", 
+          "--disable-dev-shm-usage",
+          "--disable-gpu",
+          "--disable-web-security",
+          "--disable-features=VizDisplayCompositor",
+          "--disable-extensions",
+          "--disable-plugins",
+          "--disable-default-apps",
+          "--disable-sync",
+          "--disable-translate",
+          "--no-first-run",
+          "--no-default-browser-check",
+          "--hide-scrollbars",
+          "--mute-audio",
+          "--disable-accelerated-2d-canvas",
+          "--no-zygote",
+          "--single-process",
+          "--disable-background-timer-throttling",
+          "--disable-backgrounding-occluded-windows",
+          "--disable-renderer-backgrounding",
+          "--disable-ipc-flooding-protection"
+        ],
+        timeout: 60000,
+        protocolTimeout: 60000,
+        ignoreDefaultArgs: ['--disable-extensions'],
+        ignoreHTTPSErrors: true
+      }
     });
     const clientTime = Date.now() - clientStartTime;
     console.log(`✅ Client criado em ${clientTime}ms`);
@@ -233,12 +261,12 @@ class WhatsAppService {
     }
   }
 
-  stop() {
+  async stop() {
     if (this.client) {
       this.client.destroy();
     }
     if (this.messageModel) {
-      this.messageModel.close();
+      await this.messageModel.close();
     }
   }
 }

@@ -1,108 +1,101 @@
-const sqlite3 = require("sqlite3").verbose();
-const path = require("path");
+const { Pool } = require('pg');
+const databaseConfig = require('../config/database');
 
 class Message {
   constructor() {
-    this.db = new sqlite3.Database(path.resolve(__dirname, "../../db/contacts.db"));
-    this.initTable();
+    this.pool = new Pool(databaseConfig.postgres);
+    this.initTables();
   }
 
-  initTable() {
-    this.db.run(`CREATE TABLE IF NOT EXISTS messages (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      number TEXT,
-      message TEXT,
-      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-      is_from_client BOOLEAN DEFAULT 1
-    )`);
-
-    this.db.run(`CREATE TABLE IF NOT EXISTS conversations (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      number TEXT UNIQUE,
-      first_message TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`);
+  async initTables() {
+    try {
+      await this.pool.query(databaseConfig.tables.messages);
+      await this.pool.query(databaseConfig.tables.conversations);
+      console.log('✅ Tabelas PostgreSQL inicializadas');
+    } catch (error) {
+      console.error('❌ Erro ao inicializar tabelas:', error);
+    }
   }
 
   async create(number, message, isFromClient = true) {
-    return new Promise((resolve, reject) => {
-      this.db.run(
-        "INSERT INTO messages (number, message, is_from_client) VALUES (?, ?, ?)",
-        [number, message, isFromClient],
-        function(err) {
-          if (err) reject(err);
-          else resolve(this.lastID);
-        }
+    try {
+      const result = await this.pool.query(
+        "INSERT INTO messages (number, message, is_from_client) VALUES ($1, $2, $3) RETURNING id",
+        [number, message, isFromClient]
       );
-    });
+      return result.rows[0].id;
+    } catch (error) {
+      console.error('Erro ao criar mensagem:', error);
+      throw error;
+    }
   }
 
   async getByNumber(number, limit = 50) {
-    return new Promise((resolve, reject) => {
-      this.db.all(
-        "SELECT * FROM messages WHERE number = ? ORDER BY timestamp DESC LIMIT ?",
-        [number, limit],
-        (err, rows) => {
-          if (err) reject(err);
-          else resolve(rows);
-        }
+    try {
+      const result = await this.pool.query(
+        "SELECT * FROM messages WHERE number = $1 ORDER BY timestamp DESC LIMIT $2",
+        [number, limit]
       );
-    });
+      return result.rows;
+    } catch (error) {
+      console.error('Erro ao buscar mensagens por número:', error);
+      return [];
+    }
   }
 
   async getAll(limit = 100) {
-    return new Promise((resolve, reject) => {
-      this.db.all(
-        "SELECT * FROM messages ORDER BY timestamp DESC LIMIT ?",
-        [limit],
-        (err, rows) => {
-          if (err) reject(err);
-          else resolve(rows);
-        }
+    try {
+      const result = await this.pool.query(
+        "SELECT * FROM messages ORDER BY timestamp DESC LIMIT $1",
+        [limit]
       );
-    });
+      return result.rows;
+    } catch (error) {
+      console.error('Erro ao buscar todas as mensagens:', error);
+      return [];
+    }
   }
 
   async getConversations() {
-    return new Promise((resolve, reject) => {
-      this.db.all(
-        "SELECT * FROM conversations ORDER BY created_at DESC",
-        (err, rows) => {
-          if (err) reject(err);
-          else resolve(rows);
-        }
+    try {
+      const result = await this.pool.query(
+        "SELECT * FROM conversations ORDER BY created_at DESC"
       );
-    });
+      return result.rows;
+    } catch (error) {
+      console.error('Erro ao buscar conversas:', error);
+      return [];
+    }
   }
 
   async createConversation(number, firstMessage) {
-    return new Promise((resolve, reject) => {
-      this.db.run(
-        "INSERT OR IGNORE INTO conversations (number, first_message) VALUES (?, ?)",
-        [number, firstMessage],
-        function(err) {
-          if (err) reject(err);
-          else resolve(this.lastID);
-        }
+    try {
+      const result = await this.pool.query(
+        "INSERT INTO conversations (number, first_message) VALUES ($1, $2) ON CONFLICT (number) DO NOTHING RETURNING id",
+        [number, firstMessage]
       );
-    });
+      return result.rows[0]?.id;
+    } catch (error) {
+      console.error('Erro ao criar conversa:', error);
+      throw error;
+    }
   }
 
   async getConversationByNumber(number) {
-    return new Promise((resolve, reject) => {
-      this.db.get(
-        "SELECT * FROM conversations WHERE number = ?",
-        [number],
-        (err, row) => {
-          if (err) reject(err);
-          else resolve(row);
-        }
+    try {
+      const result = await this.pool.query(
+        "SELECT * FROM conversations WHERE number = $1",
+        [number]
       );
-    });
+      return result.rows[0] || null;
+    } catch (error) {
+      console.error('Erro ao buscar conversa por número:', error);
+      return null;
+    }
   }
 
-  close() {
-    this.db.close();
+  async close() {
+    await this.pool.end();
   }
 }
 

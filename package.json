@@ -1,8 +1,8 @@
 {
-  "name": "zapnode",
+  "name": "whatsapp-bot",
   "version": "1.0.0",
   "description": "Whatsapp integration with Node.js.",
-  "author": "Gabriel Froes",
+  "author": "Guilherme Silva",
   "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -10,7 +10,6 @@
     "start": "node ./app/server.js",
     "dev-simple": "node --trace-warnings ./app/server-simple.js",
     "start-simple": "node ./app/server-simple.js",
-    "setup": "node scripts/setup-puppeteer.js",
     "postinstall": "echo 'WhatsApp Bot installed successfully!'",
     "clean": "rm -rf .cache node_modules/.cache",
     "reinstall": "npm run clean && npm install"
@@ -22,9 +21,8 @@
     "body-parser": "^1.20.2",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
-    "puppeteer": "^24.15.0",
+    "pg": "^8.11.3",
     "qrcode-terminal": "^0.12.0",
-    "sqlite3": "^5.1.6",
     "whatsapp-web.js": "^1.23.0"
   }
 }
