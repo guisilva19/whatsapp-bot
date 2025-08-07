@@ -1,12 +1,12 @@
-require("dotenv").config();
-const express = require("express");
+import dotenv from "dotenv";
+import express, { Request, Response } from "express";
 
 // Importar serviços
-const WhatsAppService = require("./services/WhatsAppService");
+import WhatsAppService from "./services/WhatsAppService";
 
 // Importar rotas
-const createWebRoutes = require("./routes/webRoutes");
-const createWebhookRoutes = require("./routes/webhookRoutes");
+import createWebRoutes from "./routes/webRoutes";
+import createWebhookRoutes from "./routes/webhookRoutes";
 
 // Configurações
 const PORT = process.env.PORT || 3000;
@@ -30,7 +30,7 @@ app.use("/", webRoutes);
 app.use("/webhook", webhookRoutes);
 
 // Rota de health check
-app.get("/health", (req, res) => {
+app.get("/health", (req: Request, res: Response) => {
   res.json({
     status: "ok",
     timestamp: new Date().toISOString(),
@@ -61,4 +61,4 @@ process.on("SIGTERM", () => {
   console.log("\n🛑 Encerrando aplicação...");
   whatsappService.stop();
   process.exit(0);
-});
+}); 

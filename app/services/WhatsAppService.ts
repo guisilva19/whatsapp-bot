@@ -1,17 +1,27 @@
-require("dotenv").config();
-const { Client, LocalAuth } = require("whatsapp-web.js");
-const qrcode = require("qrcode-terminal");
-const Message = require("../models/Message");
+import dotenv from "dotenv";
+import { Client, LocalAuth, Message as WhatsAppMessage } from "whatsapp-web.js";
+import qrcode from "qrcode-terminal";
+import MessageModel from "../models/Message";
+
+interface PendingMessage {
+  id: number;
+  number: string;
+  message: string;
+  timestamp: Date;
+}
 
 class WhatsAppService {
+  private client: Client | null = null;
+  private messageModel: MessageModel;
+  private pendingMessages: PendingMessage[] = [];
+  private isReady: boolean = false;
+  private startTime: number = 0;
+
   constructor() {
-    this.client = null;
-    this.messageModel = new Message();
-    this.pendingMessages = [];
-    this.isReady = false;
+    this.messageModel = new MessageModel();
   }
 
-  start() {
+  start(): void {
     const startTime = Date.now();
     console.log("🔄 Iniciando WhatsApp client...");
     
@@ -46,7 +56,6 @@ class WhatsAppService {
           "--disable-ipc-flooding-protection"
         ],
         timeout: 60000,
-        protocolTimeout: 60000,
         ignoreDefaultArgs: ['--disable-extensions'],
         ignoreHTTPSErrors: true
       }
@@ -72,10 +81,12 @@ class WhatsAppService {
     console.log(`⏱️ Tempo total de inicialização: ${totalInitTime}ms (${(totalInitTime/1000).toFixed(2)}s)`);
   }
 
-  setupEventHandlers() {
+  private setupEventHandlers(): void {
+    if (!this.client) return;
+
     console.log("📡 Configurando eventos do WhatsApp...");
     
-    this.client.on("qr", (qr) => {
+    this.client.on("qr", (qr: string) => {
       console.log("🔍 Evento QR detectado!");
       const qrTime = Date.now();
       const totalTime = qrTime - this.startTime;
@@ -90,7 +101,7 @@ class WhatsAppService {
       this.isReady = true;
     });
 
-    this.client.on("loading_screen", (percent, message) => {
+    this.client.on("loading_screen", (percent: number, message: string) => {
       const loadingTime = Date.now();
       const totalTime = loadingTime - this.startTime;
       console.log(`⏳ Carregando ${percent}% - ${message} (${totalTime}ms)`);
@@ -102,27 +113,34 @@ class WhatsAppService {
       console.log(`🔐 Autenticado com sucesso em ${totalTime}ms (${(totalTime/1000).toFixed(2)}s)!`);
     });
 
-    this.client.on("auth_failure", (msg) => {
+    this.client.on("auth_failure", (msg: string) => {
       const failTime = Date.now();
       const totalTime = failTime - this.startTime;
       console.log(`❌ Falha na autenticação em ${totalTime}ms: ${msg}`);
     });
 
-    this.client.on("message", async (msg) => {
+    this.client.on("message", async (msg: WhatsAppMessage) => {
       await this.handleIncomingMessage(msg);
     });
 
-    this.client.on("disconnected", (reason) => {
+    // Evento para quando o próprio número do bot enviar mensagem
+    this.client.on("message_create", async (msg: WhatsAppMessage) => {
+      if (msg.fromMe) {
+        await this.handleOwnMessage(msg);
+      }
+    });
+
+    this.client.on("disconnected", (reason: string) => {
       console.log("❌ WhatsApp desconectado:", reason);
       this.isReady = false;
     });
 
     // Eventos adicionais para debug
-    this.client.on("change_state", (state) => {
+    this.client.on("change_state", (state: string) => {
       console.log(`🔄 Estado do cliente mudou para: ${state}`);
     });
 
-    this.client.on("incoming_call", (call) => {
+    this.client.on("incoming_call", (call: any) => {
       console.log("📞 Chamada recebida");
     });
 
@@ -137,30 +155,22 @@ class WhatsAppService {
     console.log("✅ Event handlers configurados");
   }
 
-  async handleIncomingMessage(msg) {
+  private async handleIncomingMessage(msg: WhatsAppMessage): Promise<void> {
     const rawNumber = msg.from;
     const messageText = msg.body;
     const numberE164 = `+${rawNumber.replace("@c.us", "")}`;
 
+    console.log("🔍 Mensagem recebida:", msg);
+
     // Ignora mensagens de grupo
     const isGroup = rawNumber.includes("@g.us");
     if (isGroup) {
-      console.log(`👥 Mensagem de grupo ignorada: ${rawNumber}`);
       return;
     }
 
     try {
       // Salva mensagem no banco
       await this.messageModel.create(numberE164, messageText, true);
-
-      // Adiciona às mensagens pendentes para interface web
-      this.pendingMessages.push({
-        id: Date.now(),
-        number: numberE164,
-        message: messageText,
-        timestamp: new Date().toISOString(),
-        isFromClient: true
-      });
 
       console.log(`📱 Nova mensagem de ${numberE164}: ${messageText}`);
 
@@ -174,7 +184,11 @@ class WhatsAppService {
     }
   }
 
-  async handleEpMessage(number, messageText) {
+  private async handleOwnMessage(msg: WhatsAppMessage): Promise<void> {
+    console.log("🔍 Mensagem recebida:", msg);
+  }
+
+  private async handleEpMessage(number: string, messageText: string): Promise<void> {
     console.log(`🆕 Mensagem "ep" detectada de ${number}`);
     
     try {
@@ -190,7 +204,7 @@ class WhatsAppService {
     }
   }
 
-  async sendMessage(number, message) {
+  async sendMessage(number: string, message: string): Promise<boolean> {
     if (!this.client || !this.isReady) {
       console.error("WhatsApp client não está pronto");
       return false;
@@ -211,7 +225,7 @@ class WhatsAppService {
     }
   }
 
-  async sendButtons(number) {
+  async sendButtons(number: string): Promise<boolean> {
     const buttons = [
       { body: "1️⃣ - Falar com atendente" },
       { body: "2️⃣ - Ver produtos" },
@@ -220,30 +234,30 @@ class WhatsAppService {
     ];
 
     let message = "Escolha uma opção:\n\n";
-    buttons.forEach((button, index) => {
+    buttons.forEach((button) => {
       message += `${button.body}\n`;
     });
 
     return await this.sendMessage(number, message);
   }
 
-  getClient() {
+  getClient(): Client | null {
     return this.client;
   }
 
-  isClientReady() {
+  isClientReady(): boolean {
     return this.isReady;
   }
 
-  getPendingMessages() {
+  getPendingMessages(): PendingMessage[] {
     return this.pendingMessages;
   }
 
-  markMessageAsResponded(messageId) {
+  markMessageAsResponded(messageId: number): void {
     this.pendingMessages = this.pendingMessages.filter(msg => msg.id !== messageId);
   }
 
-  async getConversationHistory(number) {
+  async getConversationHistory(number: string) {
     try {
       return await this.messageModel.getByNumber(number);
     } catch (error) {
@@ -261,7 +275,7 @@ class WhatsAppService {
     }
   }
 
-  async stop() {
+  async stop(): Promise<void> {
     if (this.client) {
       this.client.destroy();
     }
@@ -271,4 +285,4 @@ class WhatsAppService {
   }
 }
 
-module.exports = WhatsAppService; 
+export default WhatsAppService; 

@@ -1,22 +1,41 @@
-const WhatsAppService = require("../services/WhatsAppService");
+import { Request, Response } from "express";
+import WhatsAppService from "../services/WhatsAppService";
+
+interface WebhookPayload {
+  message_type: string;
+  private?: boolean;
+  conversation: {
+    meta?: {
+      sender?: {
+        phone_number?: string;
+        identifier?: string;
+      };
+    };
+  };
+  content: string;
+}
 
 class WebhookController {
-  constructor(whatsappService) {
+  private whatsappService: WhatsAppService;
+
+  constructor(whatsappService: WhatsAppService) {
     this.whatsappService = whatsappService;
   }
 
   // Processa webhook recebido
-  async handleWebhook(req, res) {
-    const payload = req.body;
+  async handleWebhook(req: Request, res: Response): Promise<void> {
+    const payload = req.body as WebhookPayload;
 
     // Ignora mensagens que não são de saída
     if (payload.message_type !== "outgoing") {
-      return res.sendStatus(200);
+      res.sendStatus(200);
+      return;
     }
 
     // Ignora mensagens privadas (ex: anotações internas dos agentes)
     if (payload.private === true) {
-      return res.sendStatus(200);
+      res.sendStatus(200);
+      return;
     }
 
     const conversation = payload.conversation;
@@ -38,7 +57,7 @@ class WebhookController {
           console.error("❌ WhatsApp client não está pronto para enviar mensagem via webhook");
         }
       } catch (error) {
-        console.error("❌ Erro ao enviar mensagem via webhook:", error.message);
+        console.error("❌ Erro ao enviar mensagem via webhook:", error instanceof Error ? error.message : error);
       }
     }
 
@@ -46,7 +65,7 @@ class WebhookController {
   }
 
   // Endpoint de teste do webhook
-  testWebhook(req, res) {
+  testWebhook(req: Request, res: Response): void {
     res.json({
       status: "success",
       message: "Webhook endpoint está funcionando",
@@ -55,7 +74,7 @@ class WebhookController {
   }
 
   // Endpoint para verificar status do webhook
-  getWebhookStatus(req, res) {
+  getWebhookStatus(req: Request, res: Response): void {
     const isReady = this.whatsappService.isClientReady();
     res.json({
       webhook_active: true,
@@ -65,4 +84,4 @@ class WebhookController {
   }
 }
 
-module.exports = WebhookController; 
+export default WebhookController; 

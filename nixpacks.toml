@@ -5,7 +5,7 @@ nixPkgs = ["nodejs", "npm", "chromium"]
 cmds = ["npm install"]
 
 [phases.build]
-cmds = ["echo 'Build completed'"]
+cmds = ["npm run build", "npx prisma generate"]
 
 [start]
 cmd = "npm start" 

@@ -1,18 +1,21 @@
-const WhatsAppService = require("../services/WhatsAppService");
+import { Request, Response } from "express";
+import WhatsAppService from "../services/WhatsAppService";
 
 class WebController {
-  constructor(whatsappService) {
+  private whatsappService: WhatsAppService;
+
+  constructor(whatsappService: WhatsAppService) {
     this.whatsappService = whatsappService;
   }
 
   // Renderiza a página principal
-  renderMainPage(req, res) {
+  renderMainPage(req: Request, res: Response): void {
     const html = this.generateHTML();
     res.send(html);
   }
 
   // API para buscar mensagens pendentes
-  async getPendingMessages(req, res) {
+  async getPendingMessages(req: Request, res: Response): Promise<void> {
     try {
       const messages = this.whatsappService.getPendingMessages();
       res.json(messages);
@@ -22,7 +25,7 @@ class WebController {
   }
 
   // API para marcar mensagem como respondida
-  markMessageAsResponded(req, res) {
+  markMessageAsResponded(req: Request, res: Response): void {
     try {
       const { messageId } = req.body;
       this.whatsappService.markMessageAsResponded(messageId);
@@ -33,9 +36,13 @@ class WebController {
   }
 
   // API para buscar histórico de conversa
-  async getConversationHistory(req, res) {
+  async getConversationHistory(req: Request, res: Response): Promise<void> {
     try {
       const { number } = req.params;
+      if (!number) {
+        res.status(400).json({ error: "Número é obrigatório" });
+        return;
+      }
       const history = await this.whatsappService.getConversationHistory(number);
       res.json(history);
     } catch (error) {
@@ -44,7 +51,7 @@ class WebController {
   }
 
   // API para buscar todas as conversas
-  async getAllConversations(req, res) {
+  async getAllConversations(req: Request, res: Response): Promise<void> {
     try {
       const conversations = await this.whatsappService.getAllConversations();
       res.json(conversations);
@@ -54,12 +61,13 @@ class WebController {
   }
 
   // API para enviar mensagem
-  async sendMessage(req, res) {
+  async sendMessage(req: Request, res: Response): Promise<void> {
     try {
       const { number, message } = req.body;
       
       if (!number || !message) {
-        return res.status(400).json({ error: "Número e mensagem são obrigatórios" });
+        res.status(400).json({ error: "Número e mensagem são obrigatórios" });
+        return;
       }
 
       const success = await this.whatsappService.sendMessage(number, message);
@@ -75,12 +83,12 @@ class WebController {
   }
 
   // API para status do WhatsApp
-  getWhatsAppStatus(req, res) {
+  getWhatsAppStatus(req: Request, res: Response): void {
     const isReady = this.whatsappService.isClientReady();
     res.json({ isReady });
   }
 
-  generateHTML() {
+  private generateHTML(): string {
     return `
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -502,4 +510,4 @@ class WebController {
   }
 }
 
-module.exports = WebController; 
+export default WebController; 
